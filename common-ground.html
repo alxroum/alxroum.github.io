@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Common Ground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --ink: #1a1209;
+    --parchment: #f5ede0;
+    --parchment-dark: #ede0cb;
+    --terracotta: #c4622d;
+    --terracotta-light: #e07a4a;
+    --sage: #5c7a5a;
+    --sage-light: #7a9e78;
+    --gold: #c9933a;
+    --gold-light: #e5b86a;
+    --warm-gray: #8a7a6a;
+    --cream: #fdf6ec;
+    --shadow: rgba(26,18,9,0.15);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--parchment);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle topographic background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(196,98,45,0.05) 39px, rgba(196,98,45,0.05) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(196,98,45,0.05) 39px, rgba(196,98,45,0.05) 40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid var(--terracotta);
+  }
+
+  .logo-mark {
+    width: 52px;
+    height: 52px;
+    background: var(--terracotta);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(196,98,45,0.3);
+  }
+
+  .logo-mark svg { width: 28px; height: 28px; }
+
+  .header-text h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+
+  .header-text p {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 300;
+    color: var(--warm-gray);
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  /* Steps indicator */
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    position: relative;
+  }
+
+  .step::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: calc(100% - 100px);
+    height: 1px;
+    background: var(--parchment-dark);
+    z-index: 0;
+  }
+
+  .step:last-child::after { display: none; }
+
+  .step-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--parchment-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--warm-gray);
+    background: var(--parchment);
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+  }
+
+  .step.active .step-num {
+    background: var(--terracotta);
+    border-color: var(--terracotta);
+    color: white;
+    box-shadow: 0 0 0 4px rgba(196,98,45,0.15);
+  }
+
+  .step.done .step-num {
+    background: var(--sage);
+    border-color: var(--sage);
+    color: white;
+  }
+
+  .step-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--warm-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+
+  .step.active .step-label { color: var(--terracotta); }
+  .step.done .step-label { color: var(--sage); }
+
+  /* Panels */
+  .panel {
+    background: var(--cream);
+    border: 1px solid var(--parchment-dark);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: 0 2px 12px var(--shadow);
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .panel-subtitle {
+    font-size: 0.82rem;
+    color: var(--warm-gray);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  /* Party management */
+  .parties-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .party-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--parchment);
+    border: 1px solid var(--parchment-dark);
+    border-radius: 8px;
+    transition: all 0.2s;
+    animation: slideIn 0.25s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .party-row.selected {
+    border-color: var(--sage);
+    background: rgba(92,122,90,0.06);
+  }
+
+  .party-row.active-selection {
+    border-color: var(--terracotta);
+    background: rgba(196,98,45,0.06);
+    box-shadow: 0 0 0 2px rgba(196,98,45,0.15);
+  }
+
+  .party-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .party-name-input {
+    flex: 1;
+    background: none;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--ink);
+    outline: none;
+    min-width: 0;
+  }
+
+  .party-name-input::placeholder { color: var(--warm-gray); }
+
+  .party-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  .party-status.waiting {
+    background: var(--parchment-dark);
+    color: var(--warm-gray);
+  }
+
+  .party-status.set {
+    background: rgba(92,122,90,0.15);
+    color: var(--sage);
+  }
+
+  .party-status.picking {
+    background: rgba(196,98,45,0.12);
+    color: var(--terracotta);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  .btn-icon {
+    background: none;
+    border: 1px solid var(--parchment-dark);
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--warm-gray);
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .btn-icon:hover { border-color: var(--terracotta); color: var(--terracotta); }
+
+  .btn-pick {
+    background: none;
+    border: 1px solid var(--terracotta);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--terracotta);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .btn-pick:hover {
+    background: var(--terracotta);
+    color: white;
+  }
+
+  .btn-pick.active {
+    background: var(--terracotta);
+    color: white;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+
+  .btn-primary {
+    background: var(--terracotta);
+    color: white;
+    box-shadow: 0 2px 8px rgba(196,98,45,0.25);
+  }
+
+  .btn-primary:hover {
+    background: var(--terracotta-light);
+    box-shadow: 0 4px 14px rgba(196,98,45,0.35);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    background: var(--parchment-dark);
+    color: var(--warm-gray);
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--parchment-dark);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--ink);
+    background: var(--parchment);
+  }
+
+  .btn-sage {
+    background: var(--sage);
+    color: white;
+    box-shadow: 0 2px 8px rgba(92,122,90,0.25);
+  }
+
+  .btn-sage:hover {
+    background: var(--sage-light);
+    transform: translateY(-1px);
+  }
+
+  .add-party-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* Map */
+  #map {
+    width: 100%;
+    height: 440px;
+    border-radius: 10px;
+    border: 1px solid var(--parchment-dark);
+    overflow: hidden;
+    box-shadow: 0 2px 12px var(--shadow);
+  }
+
+  .map-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--warm-gray);
+  }
+
+  .hint-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--terracotta);
+    animation: pulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  /* Midpoint result */
+  .midpoint-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .info-card {
+    background: var(--parchment);
+    border: 1px solid var(--parchment-dark);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .info-card-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--warm-gray);
+    margin-bottom: 4px;
+  }
+
+  .info-card-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem;
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .info-card-sub {
+    font-size: 0.75rem;
+    color: var(--warm-gray);
+    margin-top: 2px;
+  }
+
+  /* Radius control */
+  .radius-control {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--parchment);
+    border-radius: 8px;
+    border: 1px solid var(--parchment-dark);
+    margin-bottom: 16px;
+  }
+
+  .radius-control label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--warm-gray);
+    white-space: nowrap;
+  }
+
+  .radius-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--parchment-dark);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .radius-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--terracotta);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(196,98,45,0.3);
+    transition: all 0.15s;
+  }
+
+  .radius-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+
+  .radius-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--terracotta);
+    min-width: 60px;
+    text-align: right;
+  }
+
+  /* Activities */
+  .activities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .activity-card {
+    background: var(--parchment);
+    border: 1px solid var(--parchment-dark);
+    border-radius: 10px;
+    padding: 16px;
+    transition: all 0.2s;
+    cursor: pointer;
+    animation: slideIn 0.3s ease both;
+  }
+
+  .activity-card:hover {
+    border-color: var(--gold);
+    box-shadow: 0 4px 16px rgba(201,147,58,0.15);
+    transform: translateY(-2px);
+  }
+
+  .activity-icon {
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .activity-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--ink);
+    margin-bottom: 3px;
+  }
+
+  .activity-type {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--warm-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  .activity-dist {
+    font-size: 0.78rem;
+    color: var(--sage);
+    font-weight: 500;
+  }
+
+  .activity-dist span {
+    color: var(--warm-gray);
+    font-weight: 400;
+  }
+
+  .loading-activities {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 32px;
+    color: var(--warm-gray);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+  }
+
+  .loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--parchment-dark);
+    border-top-color: var(--terracotta);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 8px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .no-activities {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 32px;
+    color: var(--warm-gray);
+    font-size: 0.85rem;
+  }
+
+  /* Section actions */
+  .section-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  /* Notification toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--ink);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-family: 'DM Mono', monospace;
+    z-index: 9999;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+
+  /* Category filters */
+  .cat-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .cat-btn {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--parchment-dark);
+    background: var(--parchment);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--warm-gray);
+  }
+
+  .cat-btn.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: white;
+  }
+
+  .results-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--warm-gray);
+    margin-bottom: 4px;
+  }
+
+  @media (max-width: 600px) {
+    .midpoint-info { grid-template-columns: 1fr; }
+    .steps { gap: 4px; }
+    .step-label { display: none; }
+    header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="14" r="12" stroke="white" stroke-width="1.5"/>
+        <circle cx="14" cy="14" r="3" fill="white"/>
+        <line x1="14" y1="2" x2="14" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="14" y1="20" x2="14" y2="26" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="14" x2="8" y2="14" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="20" y1="14" x2="26" y2="14" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>Common Ground</h1>
+      <p>Find the perfect meeting point for everyone</p>
+    </div>
+  </header>
+
+  <!-- Step indicators -->
+  <div class="steps">
+    <div class="step active" id="step-1">
+      <div class="step-num">1</div>
+      <div class="step-label">Add Parties</div>
+    </div>
+    <div class="step" id="step-2">
+      <div class="step-num">2</div>
+      <div class="step-label">Pin Locations</div>
+    </div>
+    <div class="step" id="step-3">
+      <div class="step-num">3</div>
+      <div class="step-label">Find Midpoint</div>
+    </div>
+    <div class="step" id="step-4">
+      <div class="step-num">4</div>
+      <div class="step-label">Discover Activities</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Party Setup -->
+  <div class="panel" id="panel-parties">
+    <div class="panel-title">Who's coming?</div>
+    <div class="panel-subtitle">Add everyone joining the meetup. Each person will pin their location on the map.</div>
+
+    <div class="parties-list" id="parties-list"></div>
+
+    <div class="add-party-row">
+      <input type="text" id="new-party-name" placeholder="Enter a name..." style="flex:1; padding:9px 14px; border:1px solid var(--parchment-dark); border-radius:8px; font-family:'DM Sans',sans-serif; font-size:0.88rem; background:var(--parchment); outline:none; color:var(--ink);" />
+      <button class="btn btn-secondary" onclick="addParty()">+ Add Person</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Map -->
+  <div class="panel" id="panel-map">
+    <div class="panel-title">Pin your locations</div>
+    <div class="panel-subtitle">Click "Pick" next to a person's name, then click anywhere on the map to set their location.</div>
+
+    <div class="midpoint-info hidden" id="midpoint-info" style="margin-bottom:16px"></div>
+
+    <div id="map"></div>
+
+    <div class="map-hint" id="map-hint" style="opacity:0">
+      <div class="hint-dot"></div>
+      <span id="hint-text">Click on the map to place a pin</span>
+    </div>
+
+    <div style="margin-top:16px" class="section-actions">
+      <button class="btn btn-primary" id="btn-find-midpoint" onclick="findMidpoint()" disabled>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="white" stroke-width="1.5"/><line x1="8" y1="1" x2="8" y2="4" stroke="white" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="12" x2="8" y2="15" stroke="white" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="8" x2="4" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="8" x2="15" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Find Our Midpoint
+      </button>
+      <span id="pins-remaining" style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--warm-gray)"></span>
+    </div>
+  </div>
+
+  <!-- Step 3+4: Results -->
+  <div class="panel hidden" id="panel-results">
+    <div style="border-top:0;padding-top:0;margin-top:0;">
+      <div class="panel-title" style="margin-bottom:6px">Discover Activities Nearby</div>
+      <div class="panel-subtitle" style="margin-bottom:0">Set the radius and explore what's around your meeting point.</div>
+
+      <div class="radius-control" style="margin-top:14px">
+        <label>Search Radius</label>
+        <input type="range" min="500" max="20000" step="500" value="3000" class="radius-slider" id="radius-slider" oninput="updateRadius(this.value)"/>
+        <div class="radius-value" id="radius-display">3 km</div>
+      </div>
+
+      <div class="cat-filters" id="cat-filters">
+        <button class="cat-btn active" onclick="filterCat(this,'all')">All</button>
+        <button class="cat-btn" onclick="filterCat(this,'food')">🍽 Food & Drink</button>
+        <button class="cat-btn" onclick="filterCat(this,'parks')">🌿 Parks</button>
+        <button class="cat-btn" onclick="filterCat(this,'arts')">🎭 Arts & Culture</button>
+        <button class="cat-btn" onclick="filterCat(this,'sports')">⚽ Sports</button>
+        <button class="cat-btn" onclick="filterCat(this,'shopping')">🛍 Shopping</button>
+      </div>
+
+      <div class="section-actions" style="margin-bottom:14px">
+        <button class="btn btn-sage" onclick="searchActivities()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="white" stroke-width="1.4"/><line x1="8.5" y1="8.5" x2="13" y2="13" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Search Activities
+        </button>
+        <div class="results-count" id="results-count" style="display:none"></div>
+      </div>
+
+      <div class="activities-grid" id="activities-grid"></div>
+    </div>
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--parchment-dark)">
+      <button class="btn btn-secondary" onclick="resetApp()">← Start Over</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- State ----
+const COLORS = ['#c4622d','#5c7a5a','#c9933a','#6a7fbf','#a05c7a','#4a8a9a','#8a6a4a'];
+let parties = [];
+let activePickerId = null;
+let map = null;
+let midpointMarker = null;
+let midpointLines = [];
+let midpointLat = null;
+let midpointLng = null;
+let currentRadius = 3000;
+let allActivities = [];
+let activeCategory = 'all';
+let radiusCircle = null;
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  // Default parties
+  addPartyDirect('Alice');
+  addPartyDirect('Bob');
+  document.getElementById('new-party-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addParty();
+  });
+});
+
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([40, -30], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(map);
+
+  map.on('click', function(e) {
+    if (activePickerId === null) return;
+    const party = parties.find(p => p.id === activePickerId);
+    if (!party) return;
+    party.lat = e.latlng.lat;
+    party.lng = e.latlng.lng;
+
+    if (party.marker) map.removeLayer(party.marker);
+    party.marker = createMarker(party, map);
+
+    party.locationSet = true;
+    activePickerId = null;
+    renderParties();
+    checkAllSet();
+    showToast(`${party.name}'s location pinned!`);
+    document.getElementById('map-hint').style.opacity = '0';
+  });
+}
+
+function createMarker(party, mapInstance) {
+  const icon = L.divIcon({
+    html: `<div style="
+      width:32px;height:32px;border-radius:50% 50% 50% 0;
+      background:${party.color};
+      border:3px solid white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      transform:rotate(-45deg);
+      display:flex;align-items:center;justify-content:center;
+    "><div style="transform:rotate(45deg);color:white;font-size:9px;font-weight:700;font-family:sans-serif;max-width:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center">${party.name.slice(0,2).toUpperCase()}</div></div>`,
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32]
+  });
+  return L.marker([party.lat, party.lng], { icon })
+    .addTo(mapInstance)
+    .bindPopup(`<b style="font-family:sans-serif">${party.name}</b>`);
+}
+
+// ---- Parties ----
+function addPartyDirect(name) {
+  const id = Date.now() + Math.random();
+  const color = COLORS[parties.length % COLORS.length];
+  parties.push({ id, name, color, lat: null, lng: null, marker: null, locationSet: false });
+  renderParties();
+  updateSteps();
+}
+
+function addParty() {
+  const input = document.getElementById('new-party-name');
+  const name = input.value.trim();
+  if (!name) { showToast('Please enter a name.'); return; }
+  if (parties.length >= 7) { showToast('Maximum 7 parties supported.'); return; }
+  addPartyDirect(name);
+  input.value = '';
+}
+
+function removeParty(id) {
+  const p = parties.find(x => x.id === id);
+  if (p && p.marker) map.removeLayer(p.marker);
+  parties = parties.filter(x => x.id !== id);
+  renderParties();
+  checkAllSet();
+}
+
+function renderParties() {
+  const list = document.getElementById('parties-list');
+  list.innerHTML = '';
+  parties.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'party-row' + (p.locationSet ? ' selected' : '') + (activePickerId === p.id ? ' active-selection' : '');
+
+    const dot = document.createElement('div');
+    dot.className = 'party-color';
+    dot.style.background = p.color;
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'party-name-input';
+    nameInput.value = p.name;
+    nameInput.addEventListener('change', e => { p.name = e.target.value || p.name; if(p.marker) p.marker.setPopupContent(`<b style="font-family:sans-serif">${p.name}</b>`); });
+
+    const status = document.createElement('div');
+    status.className = 'party-status ' + (activePickerId === p.id ? 'picking' : p.locationSet ? 'set' : 'waiting');
+    status.textContent = activePickerId === p.id ? '📍 picking...' : p.locationSet ? '✓ set' : 'waiting';
+
+    const pickBtn = document.createElement('button');
+    pickBtn.className = 'btn-pick' + (activePickerId === p.id ? ' active' : '');
+    pickBtn.textContent = activePickerId === p.id ? 'Cancel' : p.locationSet ? 'Re-pin' : 'Pin';
+    pickBtn.onclick = () => {
+      if (activePickerId === p.id) {
+        activePickerId = null;
+        document.getElementById('map-hint').style.opacity = '0';
+      } else {
+        activePickerId = p.id;
+        const hint = document.getElementById('map-hint');
+        document.getElementById('hint-text').textContent = `Click on the map to set ${p.name}'s location`;
+        hint.style.opacity = '1';
+        // scroll to map
+        document.getElementById('panel-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      renderParties();
+    };
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-icon';
+    delBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11" y1="1" x2="1" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    delBtn.onclick = () => { if (activePickerId === p.id) activePickerId = null; removeParty(p.id); };
+
+    row.append(dot, nameInput, status, pickBtn, delBtn);
+    list.appendChild(row);
+  });
+
+  updatePinsRemaining();
+  updateSteps();
+}
+
+function checkAllSet() {
+  const allSet = parties.length >= 2 && parties.every(p => p.locationSet);
+  document.getElementById('btn-find-midpoint').disabled = !allSet;
+  updatePinsRemaining();
+}
+
+function updatePinsRemaining() {
+  const total = parties.length;
+  const set = parties.filter(p => p.locationSet).length;
+  const el = document.getElementById('pins-remaining');
+  if (total === 0) { el.textContent = ''; return; }
+  el.textContent = set < total ? `${set} of ${total} locations pinned` : '✓ All locations pinned';
+}
+
+function updateSteps() {
+  const allSet = parties.length >= 2 && parties.every(p => p.locationSet);
+  const hasParties = parties.length >= 2;
+
+  setStep(1, hasParties ? 'done' : 'active');
+  setStep(2, midpointLat ? 'done' : hasParties ? 'active' : '');
+  setStep(3, midpointLat && allSet ? 'done' : allSet ? 'active' : '');
+  setStep(4, midpointLat ? 'active' : '');
+}
+
+function setStep(n, state) {
+  const el = document.getElementById(`step-${n}`);
+  el.className = 'step ' + state;
+}
+
+// ---- Midpoint ----
+function findMidpoint() {
+  const lats = parties.map(p => p.lat * Math.PI / 180);
+  const lngs = parties.map(p => p.lng * Math.PI / 180);
+
+  let x = 0, y = 0, z = 0;
+  parties.forEach(p => {
+    const latR = p.lat * Math.PI / 180;
+    const lngR = p.lng * Math.PI / 180;
+    x += Math.cos(latR) * Math.cos(lngR);
+    y += Math.cos(latR) * Math.sin(lngR);
+    z += Math.sin(latR);
+  });
+  x /= parties.length; y /= parties.length; z /= parties.length;
+
+  const lngCenter = Math.atan2(y, x) * 180 / Math.PI;
+  const hyp = Math.sqrt(x * x + y * y);
+  const latCenter = Math.atan2(z, hyp) * 180 / Math.PI;
+
+  midpointLat = latCenter;
+  midpointLng = lngCenter;
+
+  // Compute max distance
+  const maxDist = Math.max(...parties.map(p => haversine(midpointLat, midpointLng, p.lat, p.lng)));
+
+  showResults(maxDist);
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function showResults(maxDistKm) {
+  document.getElementById('panel-results').classList.remove('hidden');
+
+  // Show the midpoint info cards inside the map panel
+  const infoEl = document.getElementById('midpoint-info');
+  infoEl.classList.remove('hidden');
+  infoEl.innerHTML = `
+    <div class="info-card">
+      <div class="info-card-label">Coordinates</div>
+      <div class="info-card-value">${midpointLat.toFixed(4)}°, ${midpointLng.toFixed(4)}°</div>
+      <div class="info-card-sub">Geographic centroid</div>
+    </div>
+    <div class="info-card">
+      <div class="info-card-label">Max Distance from Center</div>
+      <div class="info-card-value">${maxDistKm.toFixed(1)} km</div>
+      <div class="info-card-sub">Farthest party's travel</div>
+    </div>
+    ${parties.map(p => {
+      const d = haversine(midpointLat, midpointLng, p.lat, p.lng);
+      return `<div class="info-card">
+        <div class="info-card-label" style="display:flex;align-items:center;gap:6px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block"></span>
+          ${p.name}
+        </div>
+        <div class="info-card-value">${d.toFixed(1)} km</div>
+        <div class="info-card-sub">from midpoint</div>
+      </div>`;
+    }).join('')}
+  `;
+
+  // Update the existing map with midpoint layers
+  setTimeout(() => {
+    // Remove any previous midpoint overlays
+    if (midpointMarker) { map.removeLayer(midpointMarker); midpointMarker = null; }
+    midpointLines.forEach(l => map.removeLayer(l));
+    midpointLines = [];
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+
+    // Update map panel title to reflect new state
+    document.querySelector('#panel-map .panel-title').textContent = 'Your Meeting Point';
+    document.querySelector('#panel-map .panel-subtitle').textContent = 'The geographic center equidistant from all parties.';
+    document.getElementById('map-hint').style.opacity = '0';
+    // Hide the find midpoint button row now that we have results
+    document.querySelector('#panel-map .section-actions').style.display = 'none';
+
+    // Midpoint marker
+    const midIcon = L.divIcon({
+      html: `<div style="width:22px;height:22px;border-radius:50%;background:#c9933a;border:3px solid white;box-shadow:0 2px 10px rgba(201,147,58,0.5);"></div>`,
+      className: '',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
+    });
+    midpointMarker = L.marker([midpointLat, midpointLng], { icon: midIcon })
+      .addTo(map)
+      .bindPopup('<b style="font-family:sans-serif">Meeting Point</b>');
+
+    // Lines from each party to midpoint
+    parties.forEach(p => {
+      const line = L.polyline([[p.lat, p.lng],[midpointLat, midpointLng]], {
+        color: p.color, weight: 2, dashArray: '5,6', opacity: 0.6
+      }).addTo(map);
+      midpointLines.push(line);
+    });
+
+    radiusCircle = L.circle([midpointLat, midpointLng], {
+      radius: currentRadius,
+      color: '#c9933a',
+      fillColor: '#c9933a',
+      fillOpacity: 0.08,
+      weight: 2,
+      dashArray: '6,4'
+    }).addTo(map);
+
+    // Fit bounds to all points including midpoint
+    const all = [...parties.map(p => [p.lat, p.lng]), [midpointLat, midpointLng]];
+    map.fitBounds(all, { padding: [30, 30] });
+    map.invalidateSize();
+    document.getElementById('panel-map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+
+  updateSteps();
+}
+
+// ---- Radius ----
+function updateRadius(val) {
+  currentRadius = parseInt(val);
+  const km = currentRadius / 1000;
+  document.getElementById('radius-display').textContent = km >= 1 ? `${km.toFixed(km < 10 ? 1 : 0)} km` : `${currentRadius} m`;
+  if (radiusCircle) radiusCircle.setRadius(currentRadius);
+}
+
+// ---- Activities (via Overpass API) ----
+const CATEGORY_QUERIES = {
+  food: ['amenity=restaurant','amenity=cafe','amenity=bar','amenity=pub','amenity=fast_food','amenity=food_court'],
+  parks: ['leisure=park','leisure=garden','leisure=nature_reserve','amenity=park'],
+  arts: ['amenity=theatre','amenity=cinema','amenity=museum','amenity=gallery','tourism=museum','tourism=gallery','amenity=arts_centre'],
+  sports: ['leisure=sports_centre','leisure=stadium','leisure=swimming_pool','leisure=fitness_centre','leisure=golf_course'],
+  shopping: ['shop=mall','shop=supermarket','shop=department_store','amenity=marketplace','shop=clothes','shop=electronics']
+};
+
+const CATEGORY_ICONS = {
+  food: '🍽', parks: '🌿', arts: '🎭', sports: '⚽', shopping: '🛍'
+};
+
+function detectCategory(tags) {
+  if (!tags) return 'other';
+  const str = JSON.stringify(tags).toLowerCase();
+  if (str.match(/restaurant|cafe|bar|pub|fast_food|food/)) return 'food';
+  if (str.match(/park|garden|nature|green/)) return 'parks';
+  if (str.match(/theatre|cinema|museum|gallery|art/)) return 'arts';
+  if (str.match(/sport|stadium|pool|fitness|gym|golf/)) return 'sports';
+  if (str.match(/shop|mall|market|store/)) return 'shopping';
+  return 'other';
+}
+
+async function searchActivities() {
+  if (!midpointLat) return;
+  const grid = document.getElementById('activities-grid');
+  grid.innerHTML = `<div class="loading-activities"><div class="loading-spinner"></div><br/>Searching nearby places...</div>`;
+  document.getElementById('results-count').style.display = 'none';
+
+  try {
+    const queries = activeCategory === 'all'
+      ? Object.values(CATEGORY_QUERIES).flat()
+      : CATEGORY_QUERIES[activeCategory] || [];
+
+    const unionParts = queries.map(q => {
+      const [k, v] = q.split('=');
+      return `node["${k}"="${v}"](around:${currentRadius},${midpointLat},${midpointLng});
+way["${k}"="${v}"](around:${currentRadius},${midpointLat},${midpointLng});`;
+    }).join('\n');
+
+    const overpassQuery = `[out:json][timeout:25];(\n${unionParts}\n);out center 60;`;
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    allActivities = (data.elements || []).filter(el => {
+      const name = el.tags && el.tags.name;
+      return name && name.trim().length > 0;
+    }).map(el => {
+      const lat = el.type === 'node' ? el.lat : el.center?.lat;
+      const lng = el.type === 'node' ? el.lon : el.center?.lon;
+      const dist = haversine(midpointLat, midpointLng, lat, lng);
+      const cat = detectCategory(el.tags);
+      return { name: el.tags.name, tags: el.tags, lat, lng, dist, cat };
+    }).sort((a, b) => a.dist - b.dist);
+
+    renderActivities();
+  } catch(e) {
+    grid.innerHTML = `<div class="no-activities">⚠️ Could not load activities. Check your internet connection.</div>`;
+  }
+}
+
+function renderActivities() {
+  const grid = document.getElementById('activities-grid');
+  const filtered = activeCategory === 'all' ? allActivities : allActivities.filter(a => a.cat === activeCategory);
+
+  const countEl = document.getElementById('results-count');
+  countEl.style.display = 'block';
+  countEl.textContent = `${filtered.length} place${filtered.length !== 1 ? 's' : ''} found`;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="no-activities">No places found in this area.<br>Try increasing the search radius.</div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  filtered.slice(0, 24).forEach((a, i) => {
+    const card = document.createElement('div');
+    card.className = 'activity-card';
+    card.style.animationDelay = `${i * 0.04}s`;
+
+    const icon = CATEGORY_ICONS[a.cat] || '📍';
+    const type = a.tags.amenity || a.tags.leisure || a.tags.tourism || a.tags.shop || '';
+    const distStr = a.dist < 1 ? `${Math.round(a.dist * 1000)} m` : `${a.dist.toFixed(1)} km`;
+
+    card.innerHTML = `
+      <span class="activity-icon">${icon}</span>
+      <div class="activity-name">${a.name}</div>
+      <div class="activity-type">${type.replace(/_/g,' ')}</div>
+      <div class="activity-dist">${distStr} <span>from meeting point</span></div>
+    `;
+
+    card.onclick = () => {
+      map.setView([a.lat, a.lng], 16);
+      L.popup().setLatLng([a.lat, a.lng])
+        .setContent(`<b style="font-family:sans-serif">${a.name}</b><br><small>${type.replace(/_/g,' ')}</small>`)
+        .openOn(map);
+      document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    grid.appendChild(card);
+  });
+}
+
+function filterCat(btn, cat) {
+  activeCategory = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (allActivities.length > 0) renderActivities();
+}
+
+// ---- Reset ----
+function resetApp() {
+  parties.forEach(p => { if (p.marker && map) map.removeLayer(p.marker); });
+  parties = [];
+  activePickerId = null;
+  midpointLat = null;
+  midpointLng = null;
+  allActivities = [];
+
+  // Clean up midpoint overlays from the main map
+  if (midpointMarker) { map.removeLayer(midpointMarker); midpointMarker = null; }
+  midpointLines.forEach(l => map.removeLayer(l));
+  midpointLines = [];
+  if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+
+  // Restore map panel to original state
+  document.querySelector('#panel-map .panel-title').textContent = 'Pin your locations';
+  document.querySelector('#panel-map .panel-subtitle').textContent = 'Click "Pick" next to a person\'s name, then click anywhere on the map to set their location.';
+  document.querySelector('#panel-map .section-actions').style.display = '';
+  map.setView([40, -30], 2);
+
+  document.getElementById('midpoint-info').classList.add('hidden');
+  document.getElementById('midpoint-info').innerHTML = '';
+  document.getElementById('panel-results').classList.add('hidden');
+  document.getElementById('btn-find-midpoint').disabled = true;
+  document.getElementById('activities-grid').innerHTML = '';
+  document.getElementById('results-count').style.display = 'none';
+  document.getElementById('radius-slider').value = 3000;
+  updateRadius(3000);
+  activeCategory = 'all';
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.cat-btn').classList.add('active');
+
+  addPartyDirect('Alice');
+  addPartyDirect('Bob');
+  updateSteps();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---- Toast ----
+let toastTimeout;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
